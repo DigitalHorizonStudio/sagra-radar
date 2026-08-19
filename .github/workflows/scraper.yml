@@ -1,0 +1,54 @@
+name: Aggiornamento Mensile Eventi
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configura Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Installa dipendenze
+        run: pip install requests beautifulsoup4
+      - name: Esegui Scraping
+        run: |
+          python -c "
+          import requests, json
+          from bs4 import BeautifulSoup
+          
+          url = 'https://www.viaggiando-italia.it/category/eventi-e-sagre/'
+          res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+          soup = BeautifulSoup(res.text, 'html.parser')
+          
+          eventi = []
+          for idx, art in enumerate(soup.find_all('article')):
+              titolo = art.find(['h2', 'h3']).text.strip() if art.find(['h2', 'h3']) else 'Evento'
+              link = art.find('a')['href'] if art.find('a') else url
+              eventi.append({
+                  'id': str(idx),
+                  'title': titolo,
+                  'place': 'Italia',
+                  'region': 'Abruzzo',
+                  'cat': 'Sagra',
+                  'start': '2026-09-01',
+                  'end': '2026-09-30',
+                  'desc': 'Evento rilevato automaticamente per il mese corrente.',
+                  'link': link,
+                  'lat': 42.35, 'lon': 13.39
+              })
+          
+          with open('eventi.json', 'w', encoding='utf-8') as f:
+              json.dump(eventi, f, ensure_ascii=False, indent=2)
+          "
+      - name: Commit e Push
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add eventi.json
+          git commit -m "Auto-update eventi" || exit 0
+          git push
